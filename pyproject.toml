@@ -45,4 +45,5 @@ ignore = []
 minversion = "8.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["."]
 norecursedirs = [".git", ".agent", "my-repo"]
