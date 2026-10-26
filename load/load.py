@@ -33,15 +33,63 @@ def detect_row_separator(csv_file: Path) -> str:
         return "CRLF" if b"\r\n" in sample else "LF"
 
 
+def split_sql_statements(sql_text: str) -> List[str]:
+    """Split SQL script into discrete statements, respecting UDF slash delimiters."""
+    statements: List[str] = []
+    lines = sql_text.splitlines()
+    current_script_lines: List[str] = []
+    in_script = False
+    normal_buffer: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not in_script:
+            if stripped.upper().startswith("CREATE") and "SCRIPT" in stripped.upper():
+                if normal_buffer:
+                    buf_text = "\n".join(normal_buffer)
+                    for part in buf_text.split(";"):
+                        p = part.strip()
+                        if p:
+                            statements.append(p)
+                    normal_buffer = []
+                in_script = True
+                current_script_lines.append(line)
+            else:
+                normal_buffer.append(line)
+        else:
+            current_script_lines.append(line)
+            if stripped == "/":
+                stmt = "\n".join(current_script_lines).strip()
+                if stmt:
+                    statements.append(stmt)
+                current_script_lines = []
+                in_script = False
+
+    if in_script and current_script_lines:
+        stmt = "\n".join(current_script_lines).strip()
+        if stmt:
+            statements.append(stmt)
+
+    if normal_buffer:
+        buf_text = "\n".join(normal_buffer)
+        for part in buf_text.split(";"):
+            p = part.strip()
+            if p:
+                statements.append(p)
+
+    return statements
+
+
 def apply_schema(conn: pyexasol.ExaConnection, schema_file: Path) -> None:
-    """Execute SQL DDL file to ensure schema and tables exist idempotently."""
+    """Execute SQL DDL file to ensure schema, views, and UDFs exist idempotently."""
     if not schema_file.exists():
         raise FileNotFoundError(f"Schema file not found at {schema_file}")
 
     sql_content = schema_file.read_text(encoding="utf-8")
-    statements = [stmt.strip() for stmt in sql_content.split(";") if stmt.strip()]
+    statements = split_sql_statements(sql_content)
     for stmt in statements:
-        conn.execute(stmt)
+        if stmt:
+            conn.execute(stmt)
 
 
 def load_table(
