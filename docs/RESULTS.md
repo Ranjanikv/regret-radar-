@@ -26,3 +26,32 @@ Evaluated against `CUSTOMERS_TRUE` ground truth across all 4 fragmented retail t
 
 > [!NOTE]
 > Per architectural guidelines, the identity resolution model strongly favours **precision (99.90%)** over recall to prevent catastrophic false merges (erroneously combining distinct real-world customer profiles).
+
+---
+
+## 2. Stock-Out Demand Forecasting & Regret Scoring
+
+Evaluated per SKU-store across 500 active retail time series using Exasol SET-EMITS UDF parallelism (`GROUP BY d.STORE_ID, d.SKU_ID`).
+
+### Methodology
+- **Training Data**: First 76 days of daily inventory sales and stock history.
+- **Holdout Test Set**: Last 14 days (14 held-out evaluation days per SKU-store).
+- **Light Model**: Autoregressive Ridge model inside Exasol Python SLC featuring:
+  - 1-day lag (`lag_1`)
+  - 7-day seasonal lag (`lag_7`)
+  - 7-day rolling moving average (`ma_7`)
+  - Day-of-week indicator (`is_weekend`)
+- **Benchmark Baseline**: Naive "same as last week" baseline (7-day lag $y_{t-7}$).
+
+### Backtest Performance Comparison (500 Series, 14 Held-Out Days)
+| Metric | Naive 7-Day Lag Baseline | Regret Radar Ridge Model | Relative Improvement |
+|---|---|---|---|
+| **Mean Absolute Error (MAE)** | **2.426 units** | **1.910 units** | **+21.28% lower error** |
+
+### Operational Impact & Regret Metrics
+- **Total SKU-Store Series Evaluated**: 500 series (45,000 daily observations)
+- **Medium-Risk Stockouts (< 28 hrs buffer)**: 93 SKU-store locations
+- **Historical Stockout Events in Dataset**: 2,355 stockout incidents
+- **Total Units Lost Due to Stockouts**: 8,967 units
+- **Historical Lost Revenue from Stockouts**: **₹30,883,115.00** (~₹3.09 Crore)
+- **In-Database Execution Time**: **~8.2s** for full distributed training, holdout backtesting, and forward prediction across all 500 series.
