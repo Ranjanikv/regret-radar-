@@ -1,9 +1,14 @@
 """Bulk loader for synthetic CSV datasets into Exasol using pyexasol import streaming."""
 
 import argparse
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pyexasol
 
